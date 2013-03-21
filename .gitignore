@@ -1,0 +1,9 @@
+# vim files
+*.swp
+
+# log files
+*.log
+
+# python compiled files
+*.pyc
+*.pyo
