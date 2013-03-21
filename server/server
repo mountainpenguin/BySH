@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+
+__AUTHORS__ = "mountainpenguin <pinguino.de.montana@googlemail.com>"
+__COPYRIGHT__ = "Copyright (C) 2013 mountainpenguin (pinguino.de.montana@googlemail.com"
+__VERSION__ = "0.01"
+__LICENCE__ = """
+    BySH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    BySH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with BySH.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+from lib import daemon
+import multiprocessing
+import sys
+import os
+import signal
+import argparse
+import traceback
+import socket
+
+def _getPID():
+    if os.path.exists("server.pid"):
+        try:
+            return int(open("server.pid").read())
+        except ValueError:
+            return None
+    return None
+
+def status():
+    PID = _getPID()
+    if PID:
+        print "BySH Server is running with PID %d" % PID
+    else:
+        print "BySH Server is not running"
+
+def stop(force=False):
+    if force:
+        signame = "SIGKILL"
+        signum = signal.SIGKILL
+    else:
+        signame = "SIGTERM"
+        signum = signal.SIGTERM
+
+    PID = _getPID()
+    if not PID:
+        print "BySH Server doesn't appear to be running"
+        return
+    print "Sending %s to PID %d" % (signame, PID)
+    try:
+        os.kill(PID, signum)
+    except OSError:
+        print "Something went horribly wrong, there is no process with PID %d" % PID
+        print "To fix this, delete the file server/server.pid"
+    except:
+        print "Unanticipated error (please report this):"
+        traceback.print_exc()
+    else:
+        print "BySH Server stopped successfully"
+        os.remove("server.pid")
+
+def _start(portnum):
+    serv = server.Server()
+    pid = os.getpid()
+    open("server.pid","w").write(str(pid))
+    serv.main(portnum)
+    
+def start(portnum=12000):
+    STDOUT = STDERR = open("logs/server.log","a")
+    bindaddr = socket.gethostbyname(socket.gethostname())
+    print "Starting the BySH Server on %s:%d" % (bindaddr, portnum)
+    with daemon.DaemonContext(stdout=STDOUT, stderr=STDERR, working_directory=os.getcwd()):
+        p = multiprocessing.Process(target=_start, args=(portnum,)) 
+        p.start()
+        print "Started with PID %d" % p.pid()
+
+def restart(force=False):
+    stop(force)
+    start()
+
+if __name__ == "__main__":
+    """Syntax
+
+    ./server start | stop | restart | status
+    """
+    print "BySH Server %s" % (__VERSION__)
+    print __COPYRIGHT__
+    parser = argparse.ArgumentParser(description="BySH Server")
+    parser.add_argument("action", choices=("start","stop","restart","status"), help="Control the server instance")
+    parser.add_argument("-f", "--force", help="Force the server to stop", action="store_true")
+    args = parser.parse_args()
+
+    if args.action == "start":
+        start()
+    elif args.action == "stop":
+        stop(args.force)
+    elif args.action == "restart":
+        stop(args.force)
+        start()
+    elif args.action == "status":
+        status()
