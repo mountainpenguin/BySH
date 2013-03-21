@@ -75,6 +75,10 @@ def _start(host, portnum):
     serv.main(host, portnum)
     
 def start(host=None, portnum=12000):
+    PID = _getPID()
+    if PID:
+        print "BySH Server is already running"
+        return
     if not host:
         host = socket.gethostbyname(socket.gethostname())
     if not portnum:
