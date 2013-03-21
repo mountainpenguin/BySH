@@ -30,6 +30,11 @@ import sys
 import socket
 import logging
 import signal
+import statvfs
+import re
+import time
+
+import psutil
 
 class Server(object):
     def __init__(self):
@@ -57,4 +62,36 @@ class Server(object):
 
 class indexHandler(tornado.web.RequestHandler):
     def get(self):
-        self.write("Ohai der")
+        self.set_header("Content-Type", "text/plain")
+
+        loadavg = os.getloadavg()
+        self.write("Load: %s, %s, %s\n" % loadavg)
+
+        usage = os.statvfs("/")
+        total = usage[statvfs.F_BLOCKS]
+        free = usage[statvfs.F_BFREE]
+        used = total - free
+        block_size = usage[statvfs.F_BSIZE]
+        self.write("Hdd: %s / %s\n" % (used*block_size, total*block_size))
+
+        meminfofile = open("/proc/meminfo")
+        meminfo = meminfofile.read()
+        meminfofile.close()
+        try:
+            total = int(re.search("MemTotal:.*?(\d+) kB", meminfo).group(1))*1024
+            free = int(re.search("MemFree:.*?(\d+) kB", meminfo).group(1))*1024
+            cached = int(re.search("Cached:.*?(\d+) kB", meminfo).group(1))*1024
+            buffers = int(re.search("Buffers:.*?(\d+) kB", meminfo).group(1))*1024
+            effectivefree = free+cached+buffers
+            used = total - effectivefree
+        except:
+            used, total = 0, 0
+        self.write("Mem: %s / %s\n" % (used, total))
+
+        boot_match =  re.search("btime (\d+)", open("/proc/stat").read())
+        if boot_match:
+            booted = int(boot_match.group(1))
+            uptime = time.time() - booted
+            self.write("Uptime: %s\n" % uptime)
+        else:
+            self.write("Uptime: ?\n")
