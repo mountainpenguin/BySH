@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __AUTHORS__ = "mountainpenguin <pinguino.de.montana@googlemail.com>"
-__COPYRIGHT__ = "Copyright (C) 2013 mountainpenguin (pinguino.de.montana@googlemail.com"
+__COPYRIGHT__ = "Copyright (C) 2013 mountainpenguin (pinguino.de.montana@googlemail.com)"
 __VERSION__ = "0.01"
 __LICENCE__ = """
     BySH is free software: you can redistribute it and/or modify
@@ -59,7 +59,7 @@ def stop(force=False):
         os.kill(PID, signum)
     except OSError:
         print "Something went horribly wrong, there is no process with PID %d" % PID
-        print "To fix this, delete the file server/server.pid"
+        print "To fix this, delete the file server.pid"
     except:
         print "Unanticipated error (please report this):"
         traceback.print_exc()
@@ -67,20 +67,29 @@ def stop(force=False):
         print "BySH Server stopped successfully"
         os.remove("server.pid")
 
-def _start(portnum):
+def _start(host, portnum):
+    from lib import server
     serv = server.Server()
     pid = os.getpid()
     open("server.pid","w").write(str(pid))
-    serv.main(portnum)
+    serv.main(host, portnum)
     
-def start(portnum=12000):
+def start(host=None, portnum=12000):
+    if not host:
+        host = socket.gethostbyname(socket.gethostname())
+    if not portnum:
+        portnum = 12000
+    try:
+        portnum = int(portnum)
+    except ValueError:
+        portnum = 12000
+
     STDOUT = STDERR = open("logs/server.log","a")
-    bindaddr = socket.gethostbyname(socket.gethostname())
-    print "Starting the BySH Server on %s:%d" % (bindaddr, portnum)
+    print "Starting the BySH Server on %s:%d" % (host, portnum)
     with daemon.DaemonContext(stdout=STDOUT, stderr=STDERR, working_directory=os.getcwd()):
-        p = multiprocessing.Process(target=_start, args=(portnum,)) 
+        p = multiprocessing.Process(target=_start, args=(host, portnum)) 
         p.start()
-        print "Started with PID %d" % p.pid()
+        print "Started with PID %d" % p.pid
 
 def restart(force=False):
     stop(force)
@@ -96,14 +105,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BySH Server")
     parser.add_argument("action", choices=("start","stop","restart","status"), help="Control the server instance")
     parser.add_argument("-f", "--force", help="Force the server to stop", action="store_true")
+    parser.add_argument("-i", "--hostname", help="Hostname to bind to", action="store")
+    parser.add_argument("-p", "--port", help="Port to bind to", action="store")
     args = parser.parse_args()
 
     if args.action == "start":
-        start()
+        start(args.hostname, args.port)
     elif args.action == "stop":
         stop(args.force)
     elif args.action == "restart":
         stop(args.force)
-        start()
+        start(args.hostname, args.port)
     elif args.action == "status":
         status()
+
