@@ -7,3 +7,6 @@
 # python compiled files
 *.pyc
 *.pyo
+
+# pid files
+*.pid
