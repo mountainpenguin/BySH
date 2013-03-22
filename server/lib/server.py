@@ -33,6 +33,7 @@ import signal
 import statvfs
 import re
 import time
+import json
 
 import psutil
 
@@ -60,20 +61,29 @@ class Server(object):
         self.instance = tornado.ioloop.IOLoop.instance()
         self.instance.start()
 
+class ServerData(object):
+    def __init__(self, load_avg, hdd, mem, uptime): 
+        self.load_avg1, self.load_avg5, self.load_avg15 = load_avg
+        self.hdd_used, self.hdd_total = hdd 
+        self.mem_used, self.mem_total = mem 
+        self.uptime = uptime 
+    def __repr__(self):
+        return repr(self.__dict__)
+    def __str__(self):
+        return repr(self)
+    def json(self):
+        return json.dumps(self.__dict__)
+
 class indexHandler(tornado.web.RequestHandler):
-    def get(self):
-        self.set_header("Content-Type", "text/plain")
-
-        loadavg = os.getloadavg()
-        self.write("Load: %s, %s, %s\n" % loadavg)
-
+    def _hddData(self):
         usage = os.statvfs("/")
         total = usage[statvfs.F_BLOCKS]
         free = usage[statvfs.F_BFREE]
         used = total - free
         block_size = usage[statvfs.F_BSIZE]
-        self.write("Hdd: %s / %s\n" % (used*block_size, total*block_size))
+        return (used*block_size, total*block_size)
 
+    def _memData(self):
         meminfofile = open("/proc/meminfo")
         meminfo = meminfofile.read()
         meminfofile.close()
@@ -86,12 +96,23 @@ class indexHandler(tornado.web.RequestHandler):
             used = total - effectivefree
         except:
             used, total = 0, 0
-        self.write("Mem: %s / %s\n" % (used, total))
+        return used, total
 
+    def _getUptime(self):
         boot_match =  re.search("btime (\d+)", open("/proc/stat").read())
         if boot_match:
             booted = int(boot_match.group(1))
-            uptime = time.time() - booted
-            self.write("Uptime: %s\n" % uptime)
+            uptime = time.time() - booted 
         else:
-            self.write("Uptime: ?\n")
+            uptime = -1
+        return uptime
+
+    def get(self):
+        self.set_header("Content-Type", "application/json")
+        data = ServerData(
+            os.getloadavg(),
+            self._hddData(),
+            self._memData(),
+            self._getUptime(),
+        )
+        self.write(data.json())
